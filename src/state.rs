@@ -1,0 +1,47 @@
+use anyhow::{Result, anyhow};
+use bytes::BytesMut;
+use serde::Deserialize;
+use std::{fs::File, io::Read, ops::Deref, sync::Arc};
+
+#[derive(Clone)]
+pub struct AppState {
+    pub inner: Arc<AppStateInner>,
+}
+
+#[derive(Clone)]
+pub struct AppStateInner {
+    pub conf: AppConfig,
+}
+
+#[derive(Clone, Deserialize)]
+pub struct AppConfig {
+    pub max_file_size: u64,
+}
+
+impl AppConfig {
+    pub fn new(path: String) -> Result<Self> {
+        let mut file = File::open(path)?;
+        let mut buf = BytesMut::with_capacity(4096).to_vec();
+        let _ = file.read_to_end(&mut buf)?;
+
+        match toml::from_slice(&buf) {
+            Ok(v) => Ok(v),
+            Err(e) => return Err(anyhow!("{}", e)),
+        }
+    }
+}
+
+impl AppState {
+    pub fn new(config: AppConfig) -> Self {
+        Self {
+            inner: Arc::new(AppStateInner { conf: config }),
+        }
+    }
+}
+
+impl Deref for AppState {
+    type Target = AppStateInner;
+    fn deref(&self) -> &Self::Target {
+        &self.inner
+    }
+}
