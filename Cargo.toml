@@ -1,0 +1,25 @@
+[package]
+name = "brushbloom"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+photon-rs = "0.3.3"
+anyhow = "1.0.97"
+axum = { version = "0.8.4", features = [
+    "http2",
+    "query",
+    "tracing",
+    "multipart",
+    "macros",
+    "ws"
+]}
+thiserror = "2.0.16"
+tokio = { version = "1.47.1", features = ["rt", "rt-multi-thread", "macros"] }
+tokio-util = { version = "0.7.16", features = ["io"] }
+tracing = "0.1.41"
+tracing-subscriber = { version = "0.3.20", features = ["env-filter"] }
+serde = { version = "1.0.225", features = ["derive"] }
+serde_json = "1.0.145"
+bytes = "1.7"
+tempfile = "3.22.0"
