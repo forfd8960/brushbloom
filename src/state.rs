@@ -16,6 +16,7 @@ pub struct AppStateInner {
 #[derive(Debug, Clone, Deserialize)]
 pub struct AppConfig {
     pub max_file_size: u64,
+    pub file_path: String,
 }
 
 impl AppConfig {
