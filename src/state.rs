@@ -3,23 +3,23 @@ use bytes::BytesMut;
 use serde::Deserialize;
 use std::{fs::File, io::Read, ops::Deref, sync::Arc};
 
-#[derive(Clone)]
+#[derive(Debug, Clone)]
 pub struct AppState {
     pub inner: Arc<AppStateInner>,
 }
 
-#[derive(Clone)]
+#[derive(Debug, Clone)]
 pub struct AppStateInner {
     pub conf: AppConfig,
 }
 
-#[derive(Clone, Deserialize)]
+#[derive(Debug, Clone, Deserialize)]
 pub struct AppConfig {
     pub max_file_size: u64,
 }
 
 impl AppConfig {
-    pub fn new(path: String) -> Result<Self> {
+    pub fn new(path: &str) -> Result<Self> {
         let mut file = File::open(path)?;
         let mut buf = BytesMut::with_capacity(4096).to_vec();
         let _ = file.read_to_end(&mut buf)?;
