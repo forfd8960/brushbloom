@@ -1,3 +1,5 @@
+use std::path::Path;
+
 use anyhow::Result;
 use brushbloom::{
     router,
@@ -14,7 +16,11 @@ async fn main() -> Result<()> {
     tracing_subscriber::registry().with(layer).init();
 
     let app_conf = AppConfig::new("config.toml")?;
-    info!("app_conf: {:?}", app_conf);
+
+    let upload_dir = app_conf.file_path.clone();
+    if !Path::new(&upload_dir).exists() {
+        tokio::fs::create_dir(upload_dir).await?;
+    }
 
     let app_state = AppState::new(app_conf);
     info!("app_state: {:?}", app_state);
