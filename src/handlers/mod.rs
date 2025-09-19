@@ -1,6 +1,6 @@
 use serde::Serialize;
 
-pub mod upload;
+pub mod image;
 
 #[derive(Serialize)]
 pub struct ErrorResponse {
@@ -10,4 +10,5 @@ pub struct ErrorResponse {
 #[derive(Serialize)]
 struct FileResponse {
     id: String,
+    fmt: String,
 }
