@@ -17,6 +17,7 @@ pub struct AppStateInner {
 pub struct AppConfig {
     pub max_file_size: u64,
     pub file_path: String,
+    pub meta_path: String,
 }
 
 impl AppConfig {

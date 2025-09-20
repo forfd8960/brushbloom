@@ -1,3 +1,4 @@
 # file size in MegaBytes
 max_file_size = 10
 file_path = "./images"
+meta_path = "./images/metadata"

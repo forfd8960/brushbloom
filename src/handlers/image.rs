@@ -1,3 +1,4 @@
+use anyhow::{Result, anyhow};
 use axum::{
     Json,
     body::Body,
@@ -5,12 +6,16 @@ use axum::{
     http::{HeaderMap, HeaderValue, Response, StatusCode},
     response::IntoResponse,
 };
+use photon_rs::{PhotonImage, multiple::watermark, native::save_image, open_image};
 use std::{fs::File, io::Write, path::PathBuf};
 use tracing::{info, warn};
 use uuid::Uuid;
 
 use crate::{
-    handlers::{ErrorResponse, FileResponse},
+    handlers::{
+        ErrorResponse, FileResponse, ImgMetadata, WatermarkRequest, WatermarkResponse,
+        add_watermark_to_image,
+    },
     state::AppState,
 };
 
@@ -194,5 +199,83 @@ pub async fn get_image(
             )
                 .into_response();
         }
+    }
+}
+
+pub async fn watermark_image(
+    State(state): State<AppState>,
+    Path(img_id): Path<String>,
+    Json(watermk_req): Json<WatermarkRequest>,
+) -> impl IntoResponse {
+    info!("watermark request: {:?}", watermk_req);
+
+    let file_path = &state.conf.file_path;
+
+    let img_meta_res = get_meta(&state.conf.meta_path, &img_id).await;
+
+    if img_meta_res.is_err() {
+        return build_err_response(
+            StatusCode::INTERNAL_SERVER_ERROR,
+            "Failed to read file meta".to_string(),
+        );
+    }
+
+    let img_meta = img_meta_res.unwrap();
+
+    let full_path = format!("{}/{}.{}", file_path, img_id, img_meta.fmt);
+    info!("reading: {}", full_path);
+
+    let img_data_res = get_img_data(&full_path).await;
+    if img_data_res.is_err() {
+        return build_err_response(
+            StatusCode::INTERNAL_SERVER_ERROR,
+            "Failed to read image".to_string(),
+        );
+    }
+
+    let mut photon_img = PhotonImage::new_from_byteslice(img_data_res.unwrap());
+
+    add_watermark_to_image(
+        &mut photon_img,
+        &watermk_req.text,
+        &watermk_req.position,
+        watermk_req.font_size,
+    );
+
+    // Generate new image ID
+    let new_image_id = Uuid::new_v4().to_string();
+    let output_path = PathBuf::from(format!("{}/{}.{}", file_path, new_image_id, img_meta.fmt));
+
+    // Save the modified image
+    match save_image(photon_img, output_path.to_str().unwrap()) {
+        Err(e) => return build_err_response(StatusCode::INTERNAL_SERVER_ERROR, e.to_string()),
+        Ok(_) => {}
+    }
+
+    // Return response
+    let response = WatermarkResponse {
+        new_img_id: new_image_id.clone(),
+    };
+
+    (StatusCode::OK, Json(response)).into_response()
+}
+
+fn build_err_response(code: StatusCode, msg: String) -> Response<Body> {
+    (code, Json(ErrorResponse { error: msg })).into_response()
+}
+
+async fn get_meta(meta_path: &str, img_id: &str) -> Result<ImgMetadata> {
+    let p = format!("{}/{}", meta_path, img_id);
+
+    match tokio::fs::read(p).await {
+        Ok(data) => serde_json::from_slice(&data).map_err(|e| anyhow!("{}", e)),
+        Err(e) => Err(anyhow!("{}", e)),
+    }
+}
+
+async fn get_img_data(img_path: &str) -> Result<Vec<u8>> {
+    match tokio::fs::read(img_path).await {
+        Ok(data) => Ok(data),
+        Err(e) => Err(anyhow!("{}", e)),
     }
 }

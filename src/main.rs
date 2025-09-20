@@ -1,11 +1,9 @@
-use std::path::Path;
-
 use anyhow::Result;
 use brushbloom::{
     router,
     state::{AppConfig, AppState},
 };
-
+use std::path::Path;
 use tokio::net::TcpListener;
 use tracing::{info, level_filters::LevelFilter};
 use tracing_subscriber::{Layer as _, fmt::Layer, layer::SubscriberExt, util::SubscriberInitExt};
