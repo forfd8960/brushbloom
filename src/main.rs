@@ -20,6 +20,11 @@ async fn main() -> Result<()> {
         tokio::fs::create_dir(upload_dir).await?;
     }
 
+    let meta_path = app_conf.meta_path.clone();
+    if !Path::new(&meta_path).exists() {
+        tokio::fs::create_dir(meta_path).await?;
+    }
+
     let app_state = AppState::new(app_conf);
     info!("app_state: {:?}", app_state);
 

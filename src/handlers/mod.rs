@@ -1,8 +1,10 @@
 pub mod image;
 
 use anyhow::{Result, anyhow};
-use photon_rs::{PhotonImage, text::draw_text, transform::resize};
+use photon_rs::{PhotonImage, native::save_image, text::draw_text, transform::resize};
 use serde::{Deserialize, Serialize};
+use std::path::PathBuf;
+use uuid::Uuid;
 
 #[derive(Serialize, Deserialize)]
 pub struct ImgMetadata {
@@ -122,4 +124,19 @@ fn resize_image(
     );
 
     Ok(resized_image)
+}
+
+fn save_new_iamge(
+    file_path: &str,
+    img_meta: &ImgMetadata,
+    compressed_image: PhotonImage,
+) -> Result<String> {
+    let new_image_id = Uuid::new_v4().to_string();
+    let output_path = PathBuf::from(format!("{}/{}{}", file_path, new_image_id, img_meta.fmt));
+
+    // Save the modified image
+    match save_image(compressed_image, output_path.to_str().unwrap()) {
+        Err(e) => return Err(anyhow!("Failed to save image: {}", e)),
+        Ok(_) => Ok(new_image_id),
+    }
 }

@@ -15,7 +15,7 @@ use crate::{
     handlers::{
         CompressImageRequest, CompressImageResponse, ErrorResponse, FileResponse, ImgMetadata,
         ResizeImageRequest, ResizeImageResponse, WatermarkRequest, WatermarkResponse,
-        add_watermark_to_image, resize_image,
+        add_watermark_to_image, resize_image, save_new_iamge,
     },
     state::AppState,
 };
@@ -118,24 +118,44 @@ fn write_file(state: &AppState, image_type: String, file_data: Vec<u8>) -> Respo
             info!("writing data to file: {:?}", file_path);
 
             if let Err(_) = file.write_all(&file_data) {
-                return (
+                return build_err_response(
                     StatusCode::INTERNAL_SERVER_ERROR,
-                    Json(ErrorResponse {
-                        error: "Failed to save file".to_string(),
-                    }),
-                )
-                    .into_response();
+                    "Failed to save file".to_string(),
+                );
             }
         }
         Err(e) => {
             warn!("failed create file: {}", e);
-            return (
+            return build_err_response(
                 StatusCode::INTERNAL_SERVER_ERROR,
-                Json(ErrorResponse {
-                    error: "Failed to create file".to_string(),
-                }),
-            )
-                .into_response();
+                "Failed to create file".to_string(),
+            );
+        }
+    }
+
+    // Save metadata
+    let meta = ImgMetadata {
+        fmt: image_format.as_str().to_string(),
+        size_in_bytes: file_data.len() as u32,
+    };
+    let meta_path = PathBuf::from(format!("{}/{}", &state.conf.meta_path, file_id));
+
+    match File::create(&meta_path) {
+        Ok(mut meta_file) => {
+            let meta_json = serde_json::to_vec(&meta).unwrap();
+            if let Err(_) = meta_file.write_all(meta_json.as_slice()) {
+                return build_err_response(
+                    StatusCode::INTERNAL_SERVER_ERROR,
+                    "Failed to save metadata".to_string(),
+                );
+            }
+        }
+        Err(e) => {
+            warn!("failed create meta file: {}", e);
+            return build_err_response(
+                StatusCode::INTERNAL_SERVER_ERROR,
+                "Failed to create metadata file".to_string(),
+            );
         }
     }
 
@@ -222,19 +242,18 @@ pub async fn watermark_image(
     );
 
     // Generate new image ID
-    let new_image_id = Uuid::new_v4().to_string();
     let file_path = &state.conf.file_path;
-    let output_path = PathBuf::from(format!("{}/{}.{}", file_path, new_image_id, img_meta.fmt));
-
-    // Save the modified image
-    match save_image(photon_img, output_path.to_str().unwrap()) {
-        Err(e) => return build_err_response(StatusCode::INTERNAL_SERVER_ERROR, e.to_string()),
-        Ok(_) => {}
+    let new_image_id = save_new_iamge(file_path, &img_meta, photon_img);
+    if new_image_id.is_err() {
+        return build_err_response(
+            StatusCode::INTERNAL_SERVER_ERROR,
+            new_image_id.err().unwrap().to_string(),
+        );
     }
 
     // Return response
     let response = WatermarkResponse {
-        new_img_id: new_image_id.clone(),
+        new_img_id: new_image_id.unwrap(),
     };
 
     (StatusCode::OK, Json(response)).into_response()
@@ -270,7 +289,7 @@ pub async fn resize_img(
         );
     }
 
-    let output_path = PathBuf::from(format!("{}/{}.{}", file_path, new_image_id, img_meta.fmt));
+    let output_path = PathBuf::from(format!("{}/{}{}", file_path, new_image_id, img_meta.fmt));
 
     let new_img = new_img_res.unwrap();
     let save_res = save_image(new_img, output_path);
@@ -303,22 +322,22 @@ pub async fn compress_image(
     let (photon_img, img_meta) = photon_img_res.unwrap();
     let compressed_image = compress(&photon_img, req.quality);
 
-    let new_image_id = Uuid::new_v4().to_string();
     let file_path = &state.conf.file_path;
-    let output_path = PathBuf::from(format!("{}/{}.{}", file_path, new_image_id, img_meta.fmt));
-
-    // Save the modified image
-    match save_image(compressed_image, output_path.to_str().unwrap()) {
-        Err(e) => return build_err_response(StatusCode::INTERNAL_SERVER_ERROR, e.to_string()),
-        Ok(_) => {}
+    let new_image_id = save_new_iamge(file_path, &img_meta, compressed_image);
+    if new_image_id.is_err() {
+        return build_err_response(
+            StatusCode::INTERNAL_SERVER_ERROR,
+            new_image_id.err().unwrap().to_string(),
+        );
     }
 
-    // Return response
-    let response = CompressImageResponse {
-        new_img_id: new_image_id.clone(),
-    };
-
-    (StatusCode::OK, Json(response)).into_response()
+    (
+        StatusCode::OK,
+        Json(CompressImageResponse {
+            new_img_id: new_image_id.unwrap(),
+        }),
+    )
+        .into_response()
 }
 
 fn build_err_response(code: StatusCode, msg: String) -> Response<Body> {
@@ -341,7 +360,7 @@ async fn read_image(
     let img_meta = img_meta_res.unwrap();
 
     let file_path = &state.conf.file_path;
-    let full_path = format!("{}/{}.{}", file_path, img_id, img_meta.fmt);
+    let full_path = format!("{}/{}{}", file_path, img_id, img_meta.fmt);
     info!("reading: {}", full_path);
 
     let img_data_res = get_img_data(&full_path).await;
