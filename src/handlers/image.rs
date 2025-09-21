@@ -6,15 +6,16 @@ use axum::{
     http::{HeaderMap, HeaderValue, Response, StatusCode},
     response::IntoResponse,
 };
-use photon_rs::{PhotonImage, native::save_image};
+use photon_rs::{PhotonImage, native::save_image, transform::compress};
 use std::{fs::File, io::Write, path::PathBuf};
 use tracing::{info, warn};
 use uuid::Uuid;
 
 use crate::{
     handlers::{
-        ErrorResponse, FileResponse, ImgMetadata, ResizeImageRequest, ResizeImageResponse,
-        WatermarkRequest, WatermarkResponse, add_watermark_to_image, resize_image,
+        CompressImageRequest, CompressImageResponse, ErrorResponse, FileResponse, ImgMetadata,
+        ResizeImageRequest, ResizeImageResponse, WatermarkRequest, WatermarkResponse,
+        add_watermark_to_image, resize_image,
     },
     state::AppState,
 };
@@ -281,6 +282,39 @@ pub async fn resize_img(
     }
 
     let response = ResizeImageResponse {
+        new_img_id: new_image_id.clone(),
+    };
+
+    (StatusCode::OK, Json(response)).into_response()
+}
+
+pub async fn compress_image(
+    State(state): State<AppState>,
+    Path(img_id): Path<String>,
+    Json(req): Json<CompressImageRequest>,
+) -> impl IntoResponse {
+    info!("compress request: {:?}", req);
+
+    let photon_img_res = read_image(&state, &img_id).await;
+    if photon_img_res.is_err() {
+        return photon_img_res.err().unwrap();
+    }
+
+    let (photon_img, img_meta) = photon_img_res.unwrap();
+    let compressed_image = compress(&photon_img, req.quality);
+
+    let new_image_id = Uuid::new_v4().to_string();
+    let file_path = &state.conf.file_path;
+    let output_path = PathBuf::from(format!("{}/{}.{}", file_path, new_image_id, img_meta.fmt));
+
+    // Save the modified image
+    match save_image(compressed_image, output_path.to_str().unwrap()) {
+        Err(e) => return build_err_response(StatusCode::INTERNAL_SERVER_ERROR, e.to_string()),
+        Ok(_) => {}
+    }
+
+    // Return response
+    let response = CompressImageResponse {
         new_img_id: new_image_id.clone(),
     };
 

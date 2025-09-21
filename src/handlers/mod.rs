@@ -45,6 +45,16 @@ pub struct ResizeImageResponse {
     new_img_id: String,
 }
 
+#[derive(Debug, Deserialize)]
+pub struct CompressImageRequest {
+    quality: u8, // 0-100
+}
+
+#[derive(Debug, Serialize)]
+pub struct CompressImageResponse {
+    new_img_id: String,
+}
+
 // Helper function to add watermark
 fn add_watermark_to_image(image: &mut PhotonImage, text: &str, position: &str, font_size: u32) {
     // Determine position coordinates (simplified for example)
