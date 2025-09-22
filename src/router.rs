@@ -5,7 +5,9 @@ use axum::{
 };
 
 use crate::{
-    handlers::image::{compress_image, get_image, resize_img, upload_image, watermark_image},
+    handlers::image::{
+        compress_image, crop_image, get_image, resize_img, upload_image, watermark_image,
+    },
     state::AppState,
 };
 
@@ -16,6 +18,7 @@ pub fn routers(app_state: AppState) -> Result<Router> {
         .route("/api/images/{img_id}/watermark", post(watermark_image))
         .route("/api/images/{img_id}/resize", post(resize_img))
         .route("/api/images/{img_id}/compress", post(compress_image))
+        .route("/api/images/{img_id}/crop", post(crop_image))
         .with_state(app_state);
 
     Ok(router)

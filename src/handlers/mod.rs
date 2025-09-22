@@ -57,6 +57,19 @@ pub struct CompressImageResponse {
     new_img_id: String,
 }
 
+#[derive(Debug, Deserialize)]
+pub struct CorpImageRequest {
+    x: u32,
+    y: u32,
+    width: u32,
+    height: u32,
+}
+
+#[derive(Debug, Serialize)]
+pub struct CorpImageResponse {
+    new_img_id: String,
+}
+
 // Helper function to add watermark
 fn add_watermark_to_image(image: &mut PhotonImage, text: &str, position: &str, font_size: u32) {
     // Determine position coordinates (simplified for example)

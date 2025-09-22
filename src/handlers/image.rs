@@ -6,7 +6,11 @@ use axum::{
     http::{HeaderMap, HeaderValue, Response, StatusCode},
     response::IntoResponse,
 };
-use photon_rs::{PhotonImage, native::save_image, transform::compress};
+use photon_rs::{
+    PhotonImage,
+    native::save_image,
+    transform::{compress, crop},
+};
 use std::{fs::File, io::Write, path::PathBuf};
 use tracing::{info, warn};
 use uuid::Uuid;
@@ -334,6 +338,40 @@ pub async fn compress_image(
     (
         StatusCode::OK,
         Json(CompressImageResponse {
+            new_img_id: new_image_id.unwrap(),
+        }),
+    )
+        .into_response()
+}
+
+pub async fn crop_image(
+    State(state): State<AppState>,
+    Path(img_id): Path<String>,
+    Json(req): Json<super::CorpImageRequest>,
+) -> impl IntoResponse {
+    info!("crop request: {:?}", req);
+
+    let photon_img_res = read_image(&state, &img_id).await;
+    if photon_img_res.is_err() {
+        return photon_img_res.err().unwrap();
+    }
+
+    let (mut photon_img, img_meta) = photon_img_res.unwrap();
+
+    let cropped_image = crop(&mut photon_img, req.x, req.y, req.width, req.height);
+
+    let file_path = &state.conf.file_path;
+    let new_image_id = save_new_iamge(file_path, &img_meta, cropped_image);
+    if new_image_id.is_err() {
+        return build_err_response(
+            StatusCode::INTERNAL_SERVER_ERROR,
+            new_image_id.err().unwrap().to_string(),
+        );
+    }
+
+    (
+        StatusCode::OK,
+        Json(super::CorpImageResponse {
             new_img_id: new_image_id.unwrap(),
         }),
     )
